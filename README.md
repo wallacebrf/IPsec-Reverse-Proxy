@@ -75,45 +75,176 @@ Due to NGINX not working, I stumbled upon the SOCAT linux utility. The socat uti
 
 
 ### Prerequisites
-
+1. a working VPS server (THIS INSTRUCTION ASSUMES UBUNTU AS DIFFERENT DISTROS HAVE DIFFERENT COMMANDS)
+2. a working IPsec VPN device
+3. working IPv6 address on the IPsec VPN device
 
 
 ### Installation
 
+### 1. Firewall Configuration
 
+log in through SSH and using your preferred text editor, edit file ```/etc/default/ufw```. 
+Ensure IPV6 is set to yes. 
+```
+IPV6=yes
+```
+If the setting is not set to yes, change it, save the file, and exit the text editor. 
 
+we want to make sure the default state of all incoming configurations is set to blocked. Use the following command
+```
+ufw default deny incoming
+```
+you should see the following result:
+```
+Output
+Default incoming policy changed to 'deny'
+(be sure to update your rules accordingly)
+```
+We next want to allow all outgoing connections
+```
+ufw default allow outgoing
+```
+you should see the following result:
+```
+Output
+Default outgoing policy changed to 'allow'
+(be sure to update your rules accordingly)
+```
+
+we want to ensure that SSH connections are still allowed through, otherwise we will lock ourselves out of our own server
+```
+ufw allow OpenSSH
+```
+you should see the following result:
+```
+Rule added
+Rule added (v6)
+```
+
+next we need to ensure IPsec traffic will be allowed through, so we need to allow UDP ports 500 and 4500. enter the two following commands:
+```
+ufw allow 500/udp
+ufw allow 4500/udp
+```
+after each command you should see the following result:
+```
+Rule added
+Rule added (v6)
+```
+before we enable the firewall, let's ensure the settings look good
+```
+ufw status numbered
+```
+you should see the following output
+```
+Status: inactive
+
+     To                         Action      From
+     --                         ------      ----
+[1] OpenSSH                    ALLOW IN    Anywhere
+[2] OpenSSH (v6)               ALLOW IN    Anywhere (v6)
+[3] 500/udp                    ALLOW IN    Anywhere
+[4] 500/udp (v6)               ALLOW IN    Anywhere (v6)
+[5] 4500/udp                   ALLOW IN    Anywhere
+[6] 4500/udp (v6)              ALLOW IN    Anywhere (v6)
+```
+we can now enable the firewall using the command:
+```
+ufw enable
+```
+you should see the following warning, select yes to contiunue
+```
+Command may disrupt existing ssh connections. Proceed with operation (y|n)? y
+Firewall is active and enabled on system startup
+```
+### 2. Installing SOCAT utility
+Enter the following command
+```
+apt-get install -y socat
+```
+### 3. socat start script
+we need a script to execute on system boot that will start socat as we need it
+
+using your preferred text editor, create the following file: ```/var/www/socat.sh``` and enter the folllwing:
+```
+#!/bin/bash
+	current_date=$(date '+%F %X')
+	echo "$current_date - socat process restarted for the day" >> /var/log/socat-500.log
+	echo "$current_date - socat process restarted for the day" >> /var/log/socat-4500.log
+	socat UDP4-LISTEN:500,reuseaddr,fork UDP6:ipv6.your-domain.com:500 >> /var/log/socat-500.log 2>&1 &
+	socat UDP4-LISTEN:4500,reuseaddr,fork UDP6:ipv6.yourdomain.com:4500 >> /var/log/socat-4500.log 2>&1 &
+```
+the first three lines add the date details to the two socat log files for ease of future troubleshooting
+the next two lines create two copies of SOCAT. One is listening on IPv4 UDP port 500 and forwarding that traffic on IPv6 UDP port 500 to our desired IPv6 IPsec VPN device. the second is listening on IPv4 UDP port 4500 and forwarding that traffic on IPv6 UDP port 4500 to our desired IPv6 IPsec VPN device.
+If you do not have a domain, then use the server address directly but ensure the IPv6 address is enclosed in brackets like ```[your_ipv6_addr]```
+
+save the file and exit the text editor
+
+make sure the file is executable:
+```
+chmod +x /var/www/socat.sh
+```
+
+### 4. socat maintainance script
+the way we are using SOCAT, specifically the part of the command ```reuseaddr,fork``` causes a new forked copy process to form when a connection is made. To ensure we do not have too many concurrent empty/dead processes build up over time, we need to periodically run a script to terminate all active socat processes. I run this every 24 hours, but it can be run less frequnectly if desired. 
+
+using your preferred text editor, open the following file: ```/var/www/socat_stop.sh```
+add the following to the file:
+```
+#!/usr/bin/env bash
+ps -ef | grep '[s]ocat' | grep -v grep | awk '{print $2}' | xargs -r kill -9
+```
+save the file and exit the text editor
+
+make sure the file is executable:
+```
+chmod +x /var/www/socat_stop.sh
+```
+
+### 5. schedule crontab
+we need to scedule the commands to operate as needed, so let's edit the crontab file
+```crontab -e```
+and select your preferred text editor
+
+add the following:
+```
+@reboot /var/www/socat.sh
+@reboot date >> /var/log/boot_log.txt
+0 7 * * * /var/www/socat_stop.sh
+1 7 * * * /var/www/socat.sh
+```
+the first line will ensure socat is running whenever the server boots
+the second line adds the date of the server boot to a log file, so we can have a record of if/when the server reboots
+the third line runs the socat stop command every day at 7:00 AM. I actually want the script to run at 2:00 AM but due to time zones and where the server is located, i had to adjust the time accordingly. 
+the fourth line re-runs the socat start commands 1 minute after the previous copies of socat were terminated. 
+
+please note that when the stop script executes, any active IPsec tunnels will be terminated, and will not be able to re-establish for 1 minute unti the start script runs again. 
+the last two lines do not need to be run every 24 hours, they could be run every couple of days or longer if dersired. it is user prefernece depending on how many copies of socat are started and the memory capacity of the VPS. 
+
+save the file and exit the text editor. 
+
+### 6. Testing
+Let's reboot the server to ensure the @reboot socat start script works:
+
+```
+shutdown -r now
+```
+your SSH session will be terminated. allow the server to reboot and log back in. 
+let's ensure socat is running
+
+```
+ps -aux | grep socat
+```
+
+you should see one copy of the port 500 and one copy of the port 4500 processes running. 
+
+you can now connect to your IPv6 IPsec VPN connection using the IPv4 public IP assigned to your VPS. 
 
 
 <!-- CONTRIBUTING -->
-## Contributing
 
-<p align="right">(<a href="#top">back to top</a>)</p>
-
-
-
-<!-- LICENSE -->
-## License
-
-This is free to use code, use as you wish
-
-<p align="right">(<a href="#top">back to top</a>)</p>
-
-
-
-<!-- CONTACT -->
-## Contact
 
 Your Name - Brian Wallace - wallacebrf@hotmail.com
 
 Project Link: [https://github.com/wallacebrf/Synology_Data_Scrub_Status)
-
-<p align="right">(<a href="#top">back to top</a>)</p>
-
-
-
-<!-- ACKNOWLEDGMENTS -->
-## Acknowledgments
-
-
-
-<p align="right">(<a href="#top">back to top</a>)</p>
