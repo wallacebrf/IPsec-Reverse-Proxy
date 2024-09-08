@@ -175,8 +175,10 @@ using your preferred text editor, create the following file: ```/var/www/socat.s
 	socat UDP4-LISTEN:500,reuseaddr,fork UDP6:ipv6.your-domain.com:500 >> /var/log/socat-500.log 2>&1 &
 	socat UDP4-LISTEN:4500,reuseaddr,fork UDP6:ipv6.yourdomain.com:4500 >> /var/log/socat-4500.log 2>&1 &
 ```
-the first three lines add the date details to the two socat log files for ease of future troubleshooting
+the first three lines add the date details to the two socat log files for ease of future troubleshooting. 
+
 the next two lines create two copies of SOCAT. One is listening on IPv4 UDP port 500 and forwarding that traffic on IPv6 UDP port 500 to our desired IPv6 IPsec VPN device. the second is listening on IPv4 UDP port 4500 and forwarding that traffic on IPv6 UDP port 4500 to our desired IPv6 IPsec VPN device.
+
 If you do not have a domain, then use the server address directly but ensure the IPv6 address is enclosed in brackets like ```[your_ipv6_addr]```
 
 save the file and exit the text editor
