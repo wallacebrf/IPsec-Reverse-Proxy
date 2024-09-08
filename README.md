@@ -186,20 +186,11 @@ make sure the file is executable:
 chmod +x /var/www/socat.sh
 ```
 
-### 4. socat maintainance script
-the way we are using SOCAT, specifically the part of the command ```reuseaddr,fork``` causes a new forked copy process to form when a connection is made. To ensure we do not have too many concurrent empty/dead processes build up over time, we need to periodically run a script to terminate all active socat processes. I run this every 24 hours, but it can be run less frequnectly if desired. 
+### 4. socat maintainance command
+the way we are using SOCAT, specifically the part of the command ```reuseaddr,fork``` causes a new forked copy process to form when a connection is made. To ensure we do not have too many concurrent empty/dead processes build up over time, we need to periodically terminate all active socat processes. I run this every 24 hours with ```crontab```, but it can be run less frequnectly if desired. 
 
-using your preferred text editor, open the following file: ```/var/www/socat_stop.sh```
-add the following to the file:
 ```
-#!/usr/bin/env bash
 ps -ef | grep '[s]ocat' | grep -v grep | awk '{print $2}' | xargs -r kill -9
-```
-save the file and exit the text editor
-
-make sure the file is executable:
-```
-chmod +x /var/www/socat_stop.sh
 ```
 
 ### 5. schedule crontab
@@ -211,15 +202,19 @@ add the following:
 ```
 @reboot /var/www/socat.sh
 @reboot date >> /var/log/boot_log.txt
-0 7 * * * /var/www/socat_stop.sh
-1 7 * * * /var/www/socat.sh
+0 7 * * * ps -ef | grep '[s]ocat' | grep -v grep | awk '{print $2}' | xargs -r kill -9  2>&1 | logger -t mystopcommand
+1 7 * * * /var/www/socat.sh  2>&1 | logger -t mystartcommand
 ```
-the first line will ensure socat is running whenever the server boots
-the second line adds the date of the server boot to a log file, so we can have a record of if/when the server reboots
-the third line runs the socat stop command every day at 7:00 AM. I actually want the script to run at 2:00 AM but due to time zones and where the server is located, i had to adjust the time accordingly. 
-the fourth line re-runs the socat start commands 1 minute after the previous copies of socat were terminated. 
+the first line will ensure socat is running whenever the server boots.
+
+the second line adds the date of the server boot to a log file, so we can have a record of if/when the server reboots. 
+
+the third line runs the socat stop command every day at 7:00 AM. I actually want the script to run at 2:00 AM but due to time zones and where the VPS is located, I had to adjust the time accordingly. The end of the command ```2>&1 | logger -t mystopcommand``` saves the output of the command into syslog. to find the results of the command if there are any errors use the command ```grep 'mystopcommand' /var/log/syslog``` or ```grep 'mystartcommand' /var/log/syslog```. This is not needed if everything is working well, however when I first started this I had this command within a .sh bash file which was not stopping the processes as I expected. Adding the Syslog ability i realized that there was a permissions issue and the script was being denied. 
+
+the fourth line re-runs the socat start commands 1 minute after the previous copies of socat were terminated to ensure we have our need processes for the reverse proxy. 
 
 please note that when the stop script executes, any active IPsec tunnels will be terminated, and will not be able to re-establish for 1 minute unti the start script runs again. 
+
 the last two lines do not need to be run every 24 hours, they could be run every couple of days or longer if dersired. it is user prefernece depending on how many copies of socat are started and the memory capacity of the VPS. 
 
 save the file and exit the text editor. 
