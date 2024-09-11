@@ -257,61 +257,41 @@ you should see one copy of the port 500 and one copy of the port 4500 processes 
 
 you can now connect to your IPv6 IPsec VPN connection using the IPv4 public IP assigned to your VPS. 
 
-### 6. Firewall Enhanced Blocking of ASNs for other Hosting Providers
+### 6. Firewall Enhanced Blocking of ASNs for other Hosting Providers and Geography Based Blocking 
 
-to increase the security of the VPS and the IPsec VPN device we are forwarding IPv4 traffic to, one can add IP addresses to the ufw firewall to block connections. 
+To increase the security of the VPS and the IPsec VPN device we are forwarding IPv4 traffic to, one can add IP addresses to the ufw firewall to block connections. 
 
-I already have a list of ASNs I already use to block connections to my Fortigate router directly, but with the fortigate allowing connections from the VPS IPv6 address, any malicious actors accessing the VPS's IPv4 address will be allowed through to the Fortigate. This section will insure that the VPS will also block these same connections. 
+I already have a list of ASNs I use to block connections to my Fortigate router directly, but with the fortigate allowing connections from the VPS IPv6 address, any malicious actors accessing the VPS's IPv4 address will be allowed through to the Fortigate unimpeded. This section will insure that the VPS itself will also block these same connections. 
 
 Look through this list of ASNs being blocked:
 
 https://github.com/wallacebrf/dns/blob/main/ASN_LIST.txt
 
-determine if the VPS provider you are using like Hetzner, Linode etc are listed there and find their ASN number entries. 
+Determine if the VPS provider you are using like Hetzner, Linode etc are listed there and find their ASN number entries.
 
-update this file ```https://github.com/wallacebrf/dns/blob/main/ASN_block_lists_all.php``` to comment out / delete those ASN lines as we do not want to block our own hosting provider from our VPS as that could cause unexpected results. 
+Update this file ```https://raw.githubusercontent.com/wallacebrf/IPsec-Reverse-Proxy/main/ufw_update.sh``` to comment out / delete those ASN lines as we do not want to block our own hosting provider from our VPS as that could cause unexpected results. Note: I am using Hetzner so I am not currently blocking their ASN entries in the ```ufw_update.sh``` script file. 
 
-run the PHP file on a working PHP server to allow the file ```asn_block1.1.txt``` to download
+If ASN based blocking is not desired, it can be turned off by setting the script variable ```block_ASN=1``` from a value of 1 to a value of 0. 
 
-open the text file using notepad++. The ASNs will have both IPv4 and IPv6 and we need to remove the IPv6 addresses since ufw is already configured to only allow IPv4 addressees. If you do wish to use IPv6 to access your VPS, then skip this part to remove IPv6 lines
+The script will also download many different country code IPv4 IP ranges to allow for Geo based blocking. I have disabled all IPv6 incoming connections to my VPS, so I am not downloading the IPv6 addresses ranges. Currently the script downloads ALL countries IPv4 ranges EXCEPT for the United states and Germany. The US because that is the country I live in, but did not want to block Germany as Hetzner is a German company and I did not want to risk issues. 
 
-within notepad++ press ctrl+f to bring up the find box. Go over to the "mark" tab. if the mark tab is missing, update your copy of notepad++. In the "find what" field, enter ":" without the quotes as we are searching for all instances of a colon. 
+The script gets the needed Geo IP ranges from this repository: https://github.com/herrbischoff/country-ip-blocks/tree/master
 
-Ensure the checkbox "Bookmark Line" is checked and click "Mark All"
+If Geo based blocking is not desired, it can be turned off by setting the script variable ```block_geo=1``` from a value of 1 to a value of 0. 
 
-close out of the find window. In Notepad++'s main menu, click ```search --> Bookmark --> Remove Bookmarked Lines```
+If IPv6 incoming connections are not being allowed at all, like I am with my VPS, then keep the variable ```ipv6=0``` set to 0. If you wish to use IPv6, then set this variable to 1. 
 
-this will delete all of the IPv6 addresses. 
+to see what the script will attempt to do to your system's UFW configuration without actually applying those changes, set the variable ```test_mode=0``` to a value of 1. The script will output what it is doing, but not actually make changes to UFW. 
 
-on your VPS SSH window, change the directory using ```cd /var/www```
+when this script is run, it will download all of the ASN and Geo block files, aggregate them into one file, and check each address to see if it currently being blocked by UFW. If it NOT currently being blocked, then it will be added to your UFW config as a "DENY IN" to "ANYWHERE"
 
-create a new file using your preferred text editor such as ```vi blocked.ip.list```
+the second thing the script will do is compare all of the DENY IN entries in the UFW configuration and confirm they are still part of the ASN/GEO block lists. If the entry is NOT in those lists, then it will be removed. This is to ensure as those lists update over time, both new addresses will be added, but old addresses will be removed as well from your configuration. 
 
-upload all of the entries from the  ```asn_block1.1.txt``` file into the ```blocked.ip.list``` file. this will take a few minutes. When the copy/paste is complete, save the file. 
+ANy "ALLOW IN" entries on the UFW fire wall will be ignored by this script. 
 
-create a new file using your preferred text editor such as ```vi ufw.sh```
+running this script for the first time will take DAYS TO COMPLETE! The process starts out somewhat fast, but as more entries are added, it takes the UFW subsystem longer and longer to add new additional entries slowing the process down. Just let the script run. 
 
-add the following to the file:
-
-```
-#!/bin/bash
-
-counter=1
-while IFS= read -r block
-do
-   echo "Inserting address $counter"
-   ufw insert 1 deny from "$block"
-   let counter=counter+1
-done < "blocked.ip.list"
-```
-
-save and exit the text editor. 
-
-PLEASE NOTE THAT ON MY VPS, WITH OVER 49,000 IPV4 ENTRIES BEING ADDED TO USING THE UFW.SH FILE TOOK OVER 24 HOURS TO COMPLETE. 
-
-run the file using ```bash ufw.sh``` and the script will run indicating what line of the file it is currently processing. 
-
-after the script finishes, ensure your can still connect to the IPsec VPN device. 
+After the first time it is run, It is suggested to add a line to crontab to run the script once per month, this should only take a few minutes to an hour or two depending on how many addresses need to be added or removed from your UFW configuration. 
 
 <!-- CONTRIBUTING -->
 
