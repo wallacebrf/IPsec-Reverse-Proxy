@@ -63,7 +63,7 @@ Thanks to the IPv6 port, I can technically still access my home network resource
 
 I tried setting up a NGINX reverse proxy but could not get it to work with the ports 500 and 4500 used by IPsec. I was able to get the NGINX reverse proxy to work with HTTPS traffic which means I could use my Fortigate SSL-VPN. However SSL-VPN has been having a lot of vulnerabilities lately and so I have moved entirely to IPsec. 
 
-Due to NGINX not working, I stumbled upon the SOCAT Linux utility. The socat utility is a relay for bidirectional data transfers between two independent data channels. Refer <a href="https://www.redhat.com/sysadmin/getting-started-socat">HERE</a> for more information on SOCAT. 
+Due to NGINX not working, I stumbled upon the SOCAT Linux utility. The socat utility is a relay for bidirectional data transfers between two independent data channels. Refer <a href="https://www.redhat.com/sysadmin/getting-started-socat">HERE</a>, <a href="https://stuff.mit.edu/afs/sipb/machine/penguin-lust/src/socat-1.7.1.2/EXAMPLES">HERE</a>, <a href="http://www.dest-unreach.org/socat/doc/socat.html#EXAMPLES">HERE</a>, or <a href="http://pwnwiki.io/#!persistence/multi/socat.md">HERE</a> for more information on SOCAT. 
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
@@ -191,8 +191,8 @@ using your preferred text editor, create the following file: ```/var/www/socat.s
 	current_date=$(date '+%F %X')
 	echo "$current_date - socat process restarted for the day" >> /var/log/socat-500.log
 	echo "$current_date - socat process restarted for the day" >> /var/log/socat-4500.log
-	socat UDP4-LISTEN:500,reuseaddr,fork UDP6:ipv6.your-domain.com:500 >> /var/log/socat-500.log 2>&1 &
-	socat UDP4-LISTEN:4500,reuseaddr,fork UDP6:ipv6.yourdomain.com:4500 >> /var/log/socat-4500.log 2>&1 &
+	socat UDP4-LISTEN:500,reuseaddr,fork,su=nobody UDP6:ipv6.your-domain.com:500 >> /var/log/socat-500.log 2>&1 &
+	socat UDP4-LISTEN:4500,reuseaddr,fork,su=nobody UDP6:ipv6.yourdomain.com:4500 >> /var/log/socat-4500.log 2>&1 &
 ```
 the first three lines add the date details to the two socat log files for ease of future troubleshooting. 
 
