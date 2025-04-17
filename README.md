@@ -293,6 +293,13 @@ running this script for the first time will take DAYS TO COMPLETE! The process s
 
 After the first time it is run, It is suggested to add a line to crontab to run the script once per month, this should only take a few minutes to an hour or two depending on how many addresses need to be added or removed from your UFW configuration. 
 
+### 7. Disk usage monitoring
+
+install ncdu utility
+
+```sudo apt install ncdu```
+
+run the command ```ncdu``` from the root directory. can read this directory using ```cd /```
 <!-- CONTRIBUTING -->
 
 
