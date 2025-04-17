@@ -300,6 +300,11 @@ install ncdu utility
 ```sudo apt install ncdu```
 
 run the command ```ncdu``` from the root directory. can read this directory using ```cd /```
+
+to ensure less disk space usage, run this command to reduce journal logging space to 100MB max
+
+```journalctl --vacuum-size=100M```
+
 <!-- CONTRIBUTING -->
 
 
